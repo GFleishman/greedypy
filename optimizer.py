@@ -41,8 +41,10 @@ def initialize_constants(args):
     CONS['log'] = open(dirname(args.output)+'/greedypy.log', 'w')
     makedirs(CONS['outdir'], exist_ok=True)
 
-    fixed, fspacing, fmeta = inout.read_image(args.fixed, CONS['dtype'])
-    moving, mspacing, mmeta = inout.read_image(args.moving, CONS['dtype'])
+    fixed, fspacing, fmeta = inout.read_image(args.fixed, CONS['dtype'],
+        args.n5_fixed_path)
+    moving, mspacing, mmeta = inout.read_image(args.moving, CONS['dtype'],
+        args.n5_moving_path)
     CONS['fixed'] = fixed
     CONS['fixed_meta'] = fmeta
     CONS['moving'] = moving

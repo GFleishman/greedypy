@@ -21,7 +21,7 @@ def parse_n5_slice(slice_string):
 
 
 
-def read_image(path, dtype, n5_path=None, n5_slice=None):
+def read_image(path, dtype, n5_path=None):
     """Read an image and its voxel spacing"""
 
     x = splitext(path)[1]
@@ -40,18 +40,20 @@ def read_image(path, dtype, n5_path=None, n5_slice=None):
         img_data = dtype(img_data)
         img_vox = np.diag(img_meta['space directions'].astype(dtype))
         return img_data, img_vox, img_meta
-    elif isdir(path):
+    elif isdir(path) and n5_path is not None:
         import z5py, json
         img = z5py.File(path, use_zarr_format=False)
-        slices = parse_n5_slice(n5_slice)
+        slices = parse_n5_slice(n5_path[1])
         if len(slices) == 3:
-            img_data = img[n5_path][slices[0], slices[1], slices[2]]
+            img_data = img[n5_path[0]][slices[0], slices[1], slices[2]]
         elif len(slices) == 2:
-            img_data = img[n5_path][slices[0], slices[1]]
-        with open(path + n5_path + '/attributes.json') as atts:
+            img_data = img[n5_path[0]][slices[0], slices[1]]
+        img_data = img_data.astype(dtype)
+        with open(path + n5_path[0] + '/attributes.json') as atts:
             atts = json.load(atts)
         img_vox = np.absolute(np.array(atts['pixelResolution']) *
                               np.array(atts['downsamplingFactors']))
+        img_vox = img_vox.astype(dtype)
         return img_data, img_vox, atts
 
 
