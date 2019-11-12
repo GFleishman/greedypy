@@ -74,6 +74,12 @@ else:
     def set_precision(precision):
         args['precision'] = precision
 
+    def set_n5_fixed_path(n5_subpath, n5_slice):
+        args['n5_fixed_path'] = [n5_subpath, n5_slice]
+
+    def set_n5_moving_path(n5_subpath, n5_slice):
+        args['n5_moving_path'] = [n5_subpath, n5_slice]
+
 
     def register():
         global args

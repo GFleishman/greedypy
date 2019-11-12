@@ -46,8 +46,10 @@ def read_image(path, dtype, n5_path=None):
         slices = parse_n5_slice(n5_path[1])
         if len(slices) == 3:
             img_data = img[n5_path[0]][slices[0], slices[1], slices[2]]
+            img_data = np.ascontiguousarray(np.moveaxis(img_data, (0, 2), (2, 0)))
         elif len(slices) == 2:
             img_data = img[n5_path[0]][slices[0], slices[1]]
+            img_data = np.ascontiguousarray(np.moveaxis(img_data, 0, -1))
         img_data = img_data.astype(dtype)
         with open(path + n5_path[0] + '/attributes.json') as atts:
             atts = json.load(atts)
