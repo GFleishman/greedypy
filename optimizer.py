@@ -193,12 +193,6 @@ def register(args):
 
 
 
-    # write the deformation field
-    output = np.copy(lowest_phi)
-    if args.compose_output_with_it:
-        output += VARS['transformer'].Xit - VARS['transformer'].X
-    inout.write_image(output, args.output)
-
 
     if args.final_lcc is not None or \
        args.warped_image is not None:
@@ -215,6 +209,13 @@ def register(args):
     if args.final_lcc is not None:
         final_lcc = VARS['matcher'].lcc(CONS['fixed'], warped, CONS['lcc_radius'], mean=False)
         inout.write_image(final_lcc, args.final_lcc)
+
+
+    # write the deformation field
+    output = lowest_phi
+    if args.compose_output_with_it:
+        output += VARS['transformer'].Xit - VARS['transformer'].X
+    inout.write_image(output, args.output)
 
 
 
