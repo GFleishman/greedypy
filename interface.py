@@ -55,6 +55,7 @@ OPTIONS['--precision'] = {**OPTIONS['--precision'], 'default':'single'}
 OPTIONS['--n5_fixed_path'] = {**OPTIONS['--n5_fixed_path'], 'nargs':2}
 OPTIONS['--n5_moving_path'] = {**OPTIONS['--n5_moving_path'], 'nargs':2}
 OPTIONS['--compose_output_with_it'] = {**OPTIONS['--compose_output_with_it'], 'action':'store_true'}
+OPTIONS['--compose_output_with_it'] = {**OPTIONS['--compose_output_with_it'], 'default':False}
 
 
 # BUILD PARSER

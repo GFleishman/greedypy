@@ -80,6 +80,15 @@ else:
     def set_n5_moving_path(n5_subpath, n5_slice):
         args['n5_moving_path'] = [n5_subpath, n5_slice]
 
+    def set_warped_image(warped_image):
+        args['warped_image'] = warped_image
+
+    def set_final_lcc(final_lcc):
+        args['final_lcc'] = final_lcc
+
+    def set_compose_output_with_it():
+        args['compose_output_with_it'] = True
+
 
     def register():
         global args
