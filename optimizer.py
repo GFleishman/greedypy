@@ -145,7 +145,7 @@ def register(args):
 
             # compute the residual
             warped = VARS['transformer'].apply_transform(VARS['moving'],
-                VARS['spacing'], VARS['phi'], initial_transform=True)
+                VARS['spacing'], VARS['phi'], initial_transform=True)  # should check args.initial_transform
             energy, residual = VARS['matcher'].lcc_grad(VARS['fixed'], warped,
                 CONS['lcc_radius'], VARS['spacing'])
             residual = VARS['grad_smoother'].smooth(residual)
@@ -191,9 +191,30 @@ def register(args):
     print(message)
     print(message, file=CONS['log'])
 
-    inout.write_field(lowest_phi, args.output, args.fixed)
-    # TODO: make this name more customized
-    warped = VARS['transformer'].apply_transform(CONS['moving'],
-                CONS['spacing'], lowest_phi, initial_transform=True)
-    inout.write_field(warped, abspath(dirname(args.output))+'/greedypy_warped.nrrd', args.fixed)
+
+
+    # write the deformation field
+    output = lowest_phi
+    if args.compose_output_with_it:
+        output += VARS['transformer'].Xit - VARS['transformer'].X
+    inout.write_image(output, args.output)
+
+
+    if args.final_lcc is not None or \
+       args.warped_image is not None:
+        warped = VARS['transformer'].apply_transform(CONS['moving'],
+                    CONS['spacing'], lowest_phi, initial_transform=True)  # should check args.initial_transform
+
+
+    # write the warped image
+    if args.warped_image is not None:
+        inout.write_image(warped, args.warped_image)
+
+
+    # write the final lcc
+    if args.final_lcc is not None:
+        final_lcc = VARS['matcher'].lcc(CONS['fixed'], warped, CONS['lcc_radius'], mean=False)
+        inout.write_image(final_lcc, args.final_lcc)
+
+
 

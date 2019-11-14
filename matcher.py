@@ -25,7 +25,7 @@ class matcher:
         s.v_fix[s.v_fix < tolerance] = 1
 
 
-    def lcc(self, fixed, moving, rad, tolerance=1e-6):
+    def lcc(self, fixed, moving, rad, tolerance=1e-6, mean=True):
         """evaluate the lcc image match function"""
 
         s = self
@@ -37,7 +37,9 @@ class matcher:
         v_fixmov = s.local_means(s.fix_shifted*mov_shifted, rad) - \
                                  s.u_fix_shifted*u_mov_shifted
         v_fixmov[v_fixmov < tolerance] = 0
-        return -np.mean( v_fixmov**2 / (s.v_fix * v_mov) )
+        cc = v_fixmov**2 / (s.v_fix * v_mov)
+        if mean: cc = -np.mean(cc)
+        return cc
 
 
     def lcc_grad(self, fixed, moving, rad, vox, tolerance=1e-6):

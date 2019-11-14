@@ -38,7 +38,10 @@ ARGUMENTS = {
 '--initial_transform':'transform applied to moving image before optimization',
 '--precision':'single or double precision; default single',
 '--n5_fixed_path':'if using n5 format, path within fixed dataset',
-'--n5_moving_path':'if using n5 format, path within moving dataset'
+'--n5_moving_path':'if using n5 format, path within moving dataset',
+'--warped_image':'write the warped moving image',
+'--final_lcc':'write image of final lcc metric',
+'--compose_output_with_it':'compose the output with the initial transform'
 }
 
 # OPTIONS
@@ -51,6 +54,7 @@ OPTIONS['--optimization_tolerance'] = {**OPTIONS['--optimization_tolerance'], 'd
 OPTIONS['--precision'] = {**OPTIONS['--precision'], 'default':'single'}
 OPTIONS['--n5_fixed_path'] = {**OPTIONS['--n5_fixed_path'], 'nargs':2}
 OPTIONS['--n5_moving_path'] = {**OPTIONS['--n5_moving_path'], 'nargs':2}
+OPTIONS['--compose_output_with_it'] = {**OPTIONS['--compose_output_with_it'], 'action':'store_true'}
 
 
 # BUILD PARSER

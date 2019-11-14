@@ -61,19 +61,17 @@ def read_image(path, dtype, n5_path=None):
 
 
 
-def write_field(field, path, fixed):
+def write_image(field, path):
     """Write estimated field"""
 
     x = splitext(path)[1]
     ext = x if x != '.gz' else splitext(splitext(path)[0])[1]
     if ext == '.nii':
         import nibabel
-        img = nibabel.load(abspath(fixed))
-        aff = img.affine
-        img = nibabel.Nifti1Image(field, aff)
-        nibabel.save(img, path)
+        img = nibabel.Nifti1Image(field, np.eye(4))
+        nibabel.save(img, abspath(path))
     elif ext == '.nrrd':
         import nrrd
-        img, meta = nrrd.read(fixed)
         # TODO: need to create better metadata
-        nrrd.write(path, field)
+        nrrd.write(abspath(path), field)
+
