@@ -194,7 +194,7 @@ def register(args):
 
 
     # write the deformation field
-    output = lowest_phi
+    output = np.copy(lowest_phi)
     if args.compose_output_with_it:
         output += VARS['transformer'].Xit - VARS['transformer'].X
     inout.write_image(output, args.output)
