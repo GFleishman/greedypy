@@ -94,7 +94,8 @@ def initialize_variables(CONS, phi, level):
 
     # initialize the transformer
     VARS['transformer'] = transformer.transformer(shape, VARS['spacing'], CONS['dtype'])
-    VARS['transformer'].set_initial_transform(CONS['initial_transform'])
+    if 'initial_transform' in CONS.keys():
+        VARS['transformer'].set_initial_transform(CONS['initial_transform'])
     # initialize the smoothers
     VARS['field_smoother'] = smoother.smoother(
         CONS['field_abcd'][0] * 2**level,
@@ -135,6 +136,7 @@ def register(args):
         # initialize level
         phi_ = None if level == len(CONS['iterations'])-1 else lowest_phi
         VARS = initialize_variables(CONS, phi_, level)
+        init_trans = True if args.initial_transform is not None else False
         iteration, backstep_count, converged = 0, 0, False
         local_step = CONS['gradient_step']
         lowest_energy = 0
@@ -145,7 +147,7 @@ def register(args):
 
             # compute the residual
             warped = VARS['transformer'].apply_transform(VARS['moving'],
-                VARS['spacing'], VARS['phi'], initial_transform=True)  # should check args.initial_transform
+                VARS['spacing'], VARS['phi'], initial_transform=init_trans)  # should check args.initial_transform
             energy, residual = VARS['matcher'].lcc_grad(VARS['fixed'], warped,
                 CONS['lcc_radius'], VARS['spacing'])
             residual = VARS['grad_smoother'].smooth(residual)
@@ -193,11 +195,11 @@ def register(args):
 
 
 
-
+    init_trans = True if args.initial_transform is not None else False
     if args.final_lcc is not None or \
        args.warped_image is not None:
         warped = VARS['transformer'].apply_transform(CONS['moving'],
-                    CONS['spacing'], lowest_phi, initial_transform=True)  # should check args.initial_transform
+                    CONS['spacing'], lowest_phi, initial_transform=init_trans)
 
 
     # write the warped image
@@ -214,8 +216,23 @@ def register(args):
     # write the deformation field
     output = lowest_phi
     if args.compose_output_with_it:
-        output += VARS['transformer'].Xit - VARS['transformer'].X
+        output = lowest_phi + VARS['transformer'].Xit - VARS['transformer'].X
     inout.write_image(output, args.output)
+
+
+    # write the inverse
+    if args.inverse is not None:
+        inverse = VARS['transformer'].invert(CONS['spacing'], lowest_phi)
+        if args.compose_output_with_it:
+            matrix = np.array([CONS['initial_transform'][0],
+                               CONS['initial_transform'][1],
+                               CONS['initial_transform'][2],
+                               [0, 0, 0, 1]])
+            inv_matrix = np.linalg.inv(matrix)[:-1]
+            inv_trans = transformer.transformer(inverse.shape[:-1], CONS['spacing'], np.float32)
+            inv_trans.set_initial_transform(inv_matrix)
+            inverse = inverse + inv_trans.Xit - inv_trans.X
+        inout.write_image(inverse, args.inverse)
 
 
 

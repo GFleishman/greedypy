@@ -45,7 +45,7 @@ ARGUMENTS = {
 '--n5_moving_path':'if using n5 format, path within moving dataset',
 '--warped_image':'write the warped moving image',
 '--final_lcc':'write image of final lcc metric to given path',
-'--compose_output_with_it':'compose the output with the initial transform'
+'--compose_output_with_it':'compose the output with the initial transform',
 '--inverse':'writes inverse transform to given path'
 }
 
