@@ -89,6 +89,9 @@ else:
     def set_compose_output_with_it():
         args['compose_output_with_it'] = True
 
+    def set_inverse(inverse):
+        args['inverse'] = inverse
+
 
     def register():
         global args

@@ -23,6 +23,10 @@ Quick deformable registration algorithm
 ----    ---    ---    ----    ---    ---    ----
 """
 
+# TODO: add flag to automatically compute metric mask based on initial
+#       transform, i.e. for regions in the moving image that were
+#       interpolated from off-grid, set metric gradient to 0
+
 # ARGUMENTS
 ARGUMENTS = {
 'fixed':'the fixed image',
@@ -40,8 +44,9 @@ ARGUMENTS = {
 '--n5_fixed_path':'if using n5 format, path within fixed dataset',
 '--n5_moving_path':'if using n5 format, path within moving dataset',
 '--warped_image':'write the warped moving image',
-'--final_lcc':'write image of final lcc metric',
+'--final_lcc':'write image of final lcc metric to given path',
 '--compose_output_with_it':'compose the output with the initial transform'
+'--inverse':'writes inverse transform to given path'
 }
 
 # OPTIONS

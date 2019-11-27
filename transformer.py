@@ -10,6 +10,8 @@ Began: November 2019
 import numpy as np
 from scipy.ndimage import map_coordinates
 
+import time
+
 
 class transformer:
 
@@ -36,8 +38,10 @@ class transformer:
 
     def apply_transform(self, img, vox, dX, initial_transform=False, order=1):
         """Return img warped by transform X"""
+        # TODO: storing X and Xit as contiguous arrays with vector dims
+        #       first will probably speed things up; should really be done
+        #       throughout entire package
 
-        # TODO: learn about behavior of map_coordinates w.r.t. memory order)
         if len(img.shape) == len(vox):
             img = img[..., np.newaxis]
         X = self.Xit+dX if initial_transform else self.X+dX
@@ -48,4 +52,38 @@ class transformer:
             ret[..., i] = map_coordinates(img[..., i], X,
                                           order=order, mode='nearest')
         return ret.squeeze()
+
+
+    def invert(self, vox, dX, exp=2):
+        """Compute numerical inverse of given transform"""
+
+        root = self.nth_square_root(vox, dX, exp)
+        inv = np.zeros(root.shape)
+        for i in range(20):
+            inv = - self.apply_transform(root, vox, inv)
+        for i in range(exp):
+            inv = inv + self.apply_transform(inv, vox, inv)
+        return inv
+
+
+    def nth_square_root(self, vox, dX, exp):
+        """Compute nth square root of a displacement field"""
+
+        root = np.copy(dX)
+        for i in range(int(exp)):
+            root = self.square_root(vox, root)
+        return root
+
+
+    def square_root(self, vox, dX):
+        """Numerically find the square root of a displacement field"""
+
+        dXroot = np.zeros(dX.shape)
+        for i in range(5):
+            error = dX - dXroot - self.apply_transform(dXroot, vox, dXroot)
+            dXroot += 0.5 * error
+        return dXroot
+
+
+
 
