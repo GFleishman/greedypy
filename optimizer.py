@@ -218,7 +218,7 @@ def register(args):
     if args.final_lcc is not None:
         final_lcc = VARS['matcher'].lcc(CONS['fixed'], warped, CONS['lcc_radius'], mean=False)
         inout.write_image(final_lcc, args.final_lcc)
-        del warped, final_cc
+        del warped, final_lcc
 
 
     # write the deformation field
