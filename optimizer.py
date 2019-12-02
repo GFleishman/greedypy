@@ -21,6 +21,7 @@ import time
 from scipy.ndimage import zoom
 from os import makedirs
 from os.path import splitext, abspath, dirname
+import gc
 
 
 
