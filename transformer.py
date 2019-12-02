@@ -85,5 +85,39 @@ class transformer:
         return dXroot
 
 
+    def square_root_grad(self, vox, dX):
+
+        dXroot = np.zeros(dX.shape)
+        for i in range(20):
+            error = dX - dXroot - self.apply_transform(dXroot, vox, dXroot)
+            jac = self.jacobian(dXroot, vox)
+            jac = self.apply_transform_jacobian(jac, vox, dXroot)
+            jac_error = np.einsum('...ij,...j->...i', jac, error)
+            dXroot += 0.5 * (error + jac_error)
+
+            error_norm = np.linalg.norm(error, axis=-1)
+            print(error_norm.max(), '\t', np.sum(error_norm), '\t', np.mean(error_norm))
+        return dXroot
+
+
+    def jacobian(self, v, vox):
+        """Return Jacobian field of vector field v"""
+
+        sh, d = v.shape[:-1], v.shape[-1]
+        jac = np.empty(sh + (d, d))
+        for i in range(d):
+            grad = np.moveaxis(np.array(np.gradient(v[..., i], *vox)), 0, -1)
+            jac[..., i, :] = np.ascontiguousarray(grad)
+        return jac
+
+
+    def apply_transform_jacobian(self, jac, vox, dX):
+
+        ret = np.empty_like(jac)
+        for i in range(3):
+            ret[..., i] = self.apply_transform(jac[..., i].squeeze(), vox, dX)
+        return ret
+
+
 
 

@@ -195,6 +195,12 @@ def register(args):
 
 
 
+    # explicitly free some memory
+    del VARS['warped_transform'], VARS['phi']
+    del VARS['grad_smoother'], VARS['field_smoother']
+    gc.collect()
+
+
     init_trans = True if args.initial_transform is not None else False
     if args.final_lcc is not None or \
        args.warped_image is not None:
@@ -211,6 +217,7 @@ def register(args):
     if args.final_lcc is not None:
         final_lcc = VARS['matcher'].lcc(CONS['fixed'], warped, CONS['lcc_radius'], mean=False)
         inout.write_image(final_lcc, args.final_lcc)
+        del warped, final_cc
 
 
     # write the deformation field
