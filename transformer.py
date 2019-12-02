@@ -58,7 +58,7 @@ class transformer:
         """Compute numerical inverse of given transform"""
 
         root = self.nth_square_root(vox, dX, exp)
-        inv = np.zeros(root.shape)
+        inv = np.zeros(root.shape, dtype=dX.dtype)
         for i in range(20):
             inv = - self.apply_transform(root, vox, inv)
         for i in range(exp):
@@ -78,7 +78,7 @@ class transformer:
     def square_root(self, vox, dX):
         """Numerically find the square root of a displacement field"""
 
-        dXroot = np.zeros(dX.shape)
+        dXroot = np.zeros(dX.shape, dtype=dX.dtype)
         for i in range(5):
             error = dX - dXroot - self.apply_transform(dXroot, vox, dXroot)
             dXroot += 0.5 * error
