@@ -56,6 +56,9 @@ else:
     def set_mask(mask):
         args['mask'] = mask
 
+    def set_auto_mask(auto_mask):
+        args['auto_mask'] = auto_mask
+
     def set_field_regularizer(abcd):
         args['field_regularizer'] = abcd
 
