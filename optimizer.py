@@ -64,6 +64,9 @@ def initialize_constants(args):
             mask, _not_used_, _not_used__ = inout.read_image(args.mask)
         # TODO: implement mask support
 
+    if args.auto_mask:
+        CONS['auto_mask'] = [int(x) for x in args.auto_mask]
+
     return CONS
 
 
@@ -106,6 +109,14 @@ def initialize_variables(CONS, phi, level):
         *CONS['grad_abcd'][1:], VARS['spacing'], shape, CONS['dtype'])
     # initialize the matcher
     VARS['matcher'] = matcher.matcher(VARS['fixed'], VARS['moving'], CONS['lcc_radius'])
+
+    # initialzie the mask if necessary
+    if 'auto_mask' in CONS.keys():
+        mask = np.ones(VARS['moving'].shape, dtype=np.uint8)
+        for xxx in CONS['auto_mask']:
+            mask[VARS['moving'] == xxx] = 0
+        mask = mask[..., None]
+        VARS['auto_mask'] = mask
 
     return VARS
 
@@ -154,6 +165,10 @@ def register(args):
             residual = VARS['grad_smoother'].smooth(residual)
             max_residual = np.linalg.norm(residual, axis=-1).max()
             residual *= VARS['spacing'].min()/max_residual
+
+            # apply moving image mask to residual
+            if 'auto_mask' in VARS.keys():
+                residual *= VARS['auto_mask']
 
             # monitor the optimization
             if energy > (1 - CONS['tolerance']) * lowest_energy:
@@ -225,7 +240,7 @@ def register(args):
     if args.compose_output_with_it:
         output = lowest_phi + VARS['transformer'].Xit - VARS['transformer'].X
     inout.write_image(output, args.output)
-    del output, VARS['fixed'], VARS['moving'], CONS['fixed'], CONS['moving']
+    del VARS['fixed'], VARS['moving'], CONS['fixed'], CONS['moving']
     gc.collect()
 
 

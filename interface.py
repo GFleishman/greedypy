@@ -35,6 +35,7 @@ ARGUMENTS = {
 'iterations':'iterations per subsampling level, example: 100x50x25',
 '--lcc_radius':'voxel radius of window used by LCC image match; default 8',
 '--mask':'region of fixed image that should be matched; not implemented yet',
+'--auto_mask':'list of intensity values to ignore in the moving image, separate with spaces',
 '--field_regularizer':'AxBxCxD for field metric (A*divgrad + B*graddiv + C)^D; default 1x0x1x2',
 '--grad_regularizer':'AxBxCxD for gradient metric (A*divgrad + B*graddiv + C)^D; default 3x0x1x2',
 '--gradient_step':'initial gradient descent step size; default 1.0',
@@ -52,6 +53,7 @@ ARGUMENTS = {
 # OPTIONS
 OPTIONS = {a:{'help':ARGUMENTS[a]} for a in ARGUMENTS.keys()}
 OPTIONS['--lcc_radius'] = {**OPTIONS['--lcc_radius'], 'default':'8'}
+OPTIONS['--auto_mask'] = {**OPTIONS['--auto_mask'], 'nargs':'+'}
 OPTIONS['--field_regularizer'] = {**OPTIONS['--field_regularizer'], 'default':'1x0x1x2'}
 OPTIONS['--grad_regularizer'] = {**OPTIONS['--grad_regularizer'], 'default':'3x0x1x2'}
 OPTIONS['--gradient_step'] = {**OPTIONS['--gradient_step'], 'default':'1.0'}
