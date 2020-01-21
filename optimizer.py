@@ -114,7 +114,7 @@ def initialize_variables(CONS, phi, level):
     if 'auto_mask' in CONS.keys():
         mask = np.ones(VARS['moving'].shape, dtype=np.uint8)
         transformed = VARS['transformer'].apply_transform(VARS['moving'],
-            VARS['spacing'], np.zeros_like(VARS['phi']), initial_transform=True)
+            VARS['spacing'], np.zeros_like(VARS['phi']), initial_transform=True, mode='constant')
         for xxx in CONS['auto_mask']:
             mask[transformed == xxx] = 0
         mask = mask[..., None]
@@ -161,7 +161,7 @@ def register(args):
 
             # compute the residual
             warped = VARS['transformer'].apply_transform(VARS['moving'],
-                VARS['spacing'], VARS['phi'], initial_transform=init_trans)
+                VARS['spacing'], VARS['phi'], initial_transform=init_trans, mode='constant')
             energy, residual = VARS['matcher'].lcc_grad(VARS['fixed'], warped,
                 CONS['lcc_radius'], VARS['spacing'])
             residual = VARS['grad_smoother'].smooth(residual)
@@ -191,7 +191,7 @@ def register(args):
                 residual *= -local_step
                 for i in range(3):
                     VARS['warped_transform'][..., i] = VARS['transformer'].apply_transform(
-                        VARS['phi'][..., i], VARS['spacing'], residual)
+                        VARS['phi'][..., i], VARS['spacing'], residual, mode='nearest')
                 VARS['phi'] = VARS['warped_transform'] + residual
                 VARS['phi'] = VARS['field_smoother'].smooth(VARS['phi'])
 
@@ -222,7 +222,7 @@ def register(args):
     if args.final_lcc is not None or \
        args.warped_image is not None:
         warped = VARS['transformer'].apply_transform(CONS['moving'],
-                    CONS['spacing'], lowest_phi, initial_transform=init_trans)
+                    CONS['spacing'], lowest_phi, initial_transform=init_trans, mode='constant')
 
 
     # write the warped image

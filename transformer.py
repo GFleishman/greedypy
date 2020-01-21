@@ -36,7 +36,7 @@ class transformer:
         s.Xit = np.einsum('...ij,...j->...i', mm, s.X) + tt
 
 
-    def apply_transform(self, img, vox, dX, initial_transform=False, order=1):
+    def apply_transform(self, img, vox, dX, initial_transform=False, order=1, mode='nearest'):
         """Return img warped by transform X"""
         # TODO: storing X and Xit as contiguous arrays with vector dims
         #       first will probably speed things up; should really be done
@@ -50,7 +50,7 @@ class transformer:
         X = np.moveaxis(X, -1, 0)
         for i in range(img.shape[-1]):
             ret[..., i] = map_coordinates(img[..., i], X,
-                                          order=order, mode='nearest')
+                                          order=order, mode=mode)
         return ret.squeeze()
 
 
