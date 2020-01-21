@@ -113,8 +113,10 @@ def initialize_variables(CONS, phi, level):
     # initialzie the mask if necessary
     if 'auto_mask' in CONS.keys():
         mask = np.ones(VARS['moving'].shape, dtype=np.uint8)
+        transformed = VARS['transformer'].apply_transform(VARS['moving'],
+            VARS['spacing'], np.zeros_like(VARS['phi']), initial_transform=True)
         for xxx in CONS['auto_mask']:
-            mask[VARS['moving'] == xxx] = 0
+            mask[transformed == xxx] = 0
         mask = mask[..., None]
         VARS['auto_mask'] = mask
 
@@ -159,7 +161,7 @@ def register(args):
 
             # compute the residual
             warped = VARS['transformer'].apply_transform(VARS['moving'],
-                VARS['spacing'], VARS['phi'], initial_transform=init_trans)  # should check args.initial_transform
+                VARS['spacing'], VARS['phi'], initial_transform=init_trans)
             energy, residual = VARS['matcher'].lcc_grad(VARS['fixed'], warped,
                 CONS['lcc_radius'], VARS['spacing'])
             residual = VARS['grad_smoother'].smooth(residual)
