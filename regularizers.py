@@ -11,16 +11,21 @@ import pyfftw
 import numpy as np
 
 
-class smoother:
+class differential:
 
-    def __init__(self, a, b, c, d, vox, sh, dtype):
+
+    def __init__(self, a, b, c, d, vox, sh, dtype=np.float32):
+        """
+        """
+
         s = self
-        s.ffter, s.iffter = s.initializeFFTW(sh, dtype)
-        s.L, s.K = s.initialize_metric_kernel(a, b, c, d, vox, sh, dtype)
+        s.ffter, s.iffter = s._initialize_fftw(sh, dtype)
+        s.L, s.K = s._initialize_kernel(a, b, c, d, vox, sh, dtype)
 
 
-    def initializeFFTW(self, sh, dtype):
-        """Initialize the forward and inverse transforms"""
+    def _initialize_fftw(self, sh, dtype):
+        """
+        """
 
         sh, ax = tuple(sh), list(range(len(sh)))
         inp = pyfftw.empty_aligned(sh, dtype=dtype)
@@ -30,19 +35,21 @@ class smoother:
         elif dtype is np.float64:
             cdtype = np.complex128
         outp = pyfftw.empty_aligned(outp_sh, dtype=cdtype)
+        # TODO: detect number of cores for threads!
         ffter = pyfftw.FFTW(inp, outp, axes=ax, threads=1)
         iffter = pyfftw.FFTW(outp, inp, axes=ax, direction='FFTW_BACKWARD', threads=1)
         return ffter, iffter
 
 
-    def initialize_metric_kernel(self, a, b, c, d, vox, sh, dtype):
-        """Precompute the metric kernel and inverse"""
+    def _initialize_kernel(self, a, b, c, d, vox, sh, dtype):
+        """
+        """
 
         # define some useful ingredients for later
         dim, oa = len(sh), np.ones(sh, dtype=dtype)
         sha = (np.diag(sh) - np.identity(dim) + 1).astype(int)
 
-        # if grad of div term is 0, kernel is a scalar, else a Lin Txm
+        # if grad of div term is 0, kernel is a scalar field, else a tensor field
         if b == 0.0:
             L = oa * c
         else:
@@ -55,6 +62,8 @@ class smoother:
             X = np.reshape(X, sha[i])*oa
             if b == 0.0:
                 L += X
+
+            # TODO: all b != 0 code is out of date and unlikely to work
             else:
                 for j in range(dim):
                     L[..., j, j] += X
@@ -75,25 +84,28 @@ class smoother:
                     L[..., i, j] = X
                     L[..., j, i] = X
 
+        # compute and store the forward (L) and inverse (K) kernels
         # I only need half the coefficients (because we're using rfft)
-        # compute and store the inverse kernel for regularization
         if b == 0.0:
             L = L[..., :sh[-1]//2+1]**d
             K = L**-1.0
             L = L[..., np.newaxis]
             K = K[..., np.newaxis]
+
+        # TODO: all b != 0 code is out of date and unlikely to work
         else:
             L = L[..., :sh[-1]//2+1, :, :]
             cp = np.copy(L)
             for i in range(int(d-1)):
                 L = np.einsum('...ij,...jk->...ik', L, cp)
-            K = self.gu_pinv(L)
+            K = self._gu_pinv(L)
 
         return L, K
 
 
-    def gu_pinv(self, a, rcond=1e-15):
-        """Return the pseudo-inverse of matrices at every voxel"""
+    def _gu_pinv(self, a, rcond=1e-15):
+        """
+        """
 
         a = np.asarray(a)
         swap = np.arange(a.ndim)
@@ -108,16 +120,9 @@ class smoother:
                          np.transpose(u, swap))
 
 
-    def smooth(self, field):
-        s = self
-        if field.shape[-1] in [1, 2, 3]:
-            return s.ifft( s.K * s.fft(field), field.shape )
-        else:
-            return s.ifft( s.K.squeeze() * s.fft(field), field.shape)
-
-
-    def fft(self, f):
-        """Return the DFT of the real valued vector field f"""
+    def _fft(self, f):
+        """
+        """
 
         if f.shape[-1] not in [1, 2, 3]:
             f = f[..., np.newaxis]
@@ -132,8 +137,9 @@ class smoother:
         return F.squeeze()
 
 
-    def ifft(self, F, sh):
-        """Return the iDFT of the vector field F"""
+    def _ifft(self, F, sh):
+        """
+        """
 
         if sh[-1] not in [1, 2, 3]:
             sh += (1,)
@@ -147,4 +153,14 @@ class smoother:
                 f[..., i] = self.iffter(F[..., i])
         return f.squeeze()
 
+
+    def smooth(self, field):
+        """
+        """
+
+        s = self
+        if field.shape[-1] in [1, 2, 3]:
+            return s._ifft( s.K * s._fft(field), field.shape )
+        else:
+            return s._ifft( s.K.squeeze() * s._fft(field), field.shape)
 

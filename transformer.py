@@ -10,34 +10,48 @@ Began: November 2019
 import numpy as np
 from scipy.ndimage import map_coordinates
 
-import time
-
 
 class transformer:
 
 
-    def __init__(self, sh, vox, dtype):
+    def __init__(self, sh, vox, dtype=np.float32):
+        """
+        """
+
         s = self
-        s.X = s.set_position_array(sh, vox, dtype)
+        s.X = s._set_position_array(sh, vox, dtype)
 
 
-    def set_position_array(self, sh, vox, dtype):
-        """Return a position array in physical coordinates with shape sh"""
+    def _set_position_array(self, sh, vox, dtype):
+        """
+        """
         
         sh, vox = tuple(sh), np.array(vox, dtype=dtype)
         coords = np.array(np.meshgrid(*[range(x) for x in sh], indexing='ij'), dtype=dtype)
         return vox * np.ascontiguousarray(np.moveaxis(coords, 0, -1))
 
 
-    def set_initial_transform(self, matrix):
-        s = self
-        mm = matrix[:, :-1]
-        tt = matrix[:, -1]
-        s.Xit = np.einsum('...ij,...j->...i', mm, s.X) + tt
+    def set_initial_moving_transform(self, matrix=None, displacement=None):
+        """
+        """
+
+        # need matrix or displacement
+        error = "affine matrix or diplacement field required, but not both"
+        assert( (matrix is not None) != (displacement is not None) ), error
+
+        if matrix is not None:
+            s = self
+            mm = matrix[:, :-1]
+            tt = matrix[:, -1]
+            s.Xit = np.einsum('...ij,...j->...i', mm, s.X) + tt
+        elif displacement is not None:
+            raise NotImplementedError('Initial displacement fields not implemented yet')
 
 
     def apply_transform(self, img, vox, dX, initial_transform=False, order=1, mode='nearest'):
-        """Return img warped by transform X"""
+        """
+        """
+
         # TODO: storing X and Xit as contiguous arrays with vector dims
         #       first will probably speed things up; should really be done
         #       throughout entire package
@@ -55,7 +69,8 @@ class transformer:
 
 
     def invert(self, vox, dX, exp=2):
-        """Compute numerical inverse of given transform"""
+        """
+        """
 
         root = self.nth_square_root(vox, dX, exp)
         inv = np.zeros(root.shape, dtype=dX.dtype)
@@ -67,7 +82,8 @@ class transformer:
 
 
     def nth_square_root(self, vox, dX, exp):
-        """Compute nth square root of a displacement field"""
+        """
+        """
 
         root = np.copy(dX)
         for i in range(int(exp)):
@@ -76,7 +92,8 @@ class transformer:
 
 
     def square_root(self, vox, dX):
-        """Numerically find the square root of a displacement field"""
+        """
+        """
 
         dXroot = np.zeros(dX.shape, dtype=dX.dtype)
         for i in range(5):
@@ -86,6 +103,8 @@ class transformer:
 
 
     def square_root_grad(self, vox, dX):
+        """
+        """
 
         dXroot = np.zeros(dX.shape)
         for i in range(20):
@@ -101,7 +120,8 @@ class transformer:
 
 
     def jacobian(self, v, vox):
-        """Return Jacobian field of vector field v"""
+        """
+        """
 
         sh, d = v.shape[:-1], v.shape[-1]
         jac = np.empty(sh + (d, d))
@@ -112,6 +132,8 @@ class transformer:
 
 
     def apply_transform_jacobian(self, jac, vox, dX):
+        """
+        """
 
         ret = np.empty_like(jac)
         for i in range(3):

@@ -7,11 +7,6 @@ Copyright: Greg M. Fleishman
 Began: November 2019
 """
 
-# to get rid of annoying hdf5 warning; comment out if you want
-# to read the warning
-import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-
 import numpy as np
 import smoother
 import matcher
@@ -22,7 +17,6 @@ from scipy.ndimage import zoom
 from os import makedirs
 from os.path import splitext, abspath, dirname
 import gc
-
 
 
 def initialize_constants(args):
@@ -99,7 +93,7 @@ def initialize_variables(CONS, phi, level):
     # initialize the transformer
     VARS['transformer'] = transformer.transformer(shape, VARS['spacing'], CONS['dtype'])
     if 'initial_transform' in CONS.keys():
-        VARS['transformer'].set_initial_transform(CONS['initial_transform'])
+        VARS['transformer'].set_initial_moving_transform(CONS['initial_transform'])
     # initialize the smoothers
     VARS['field_smoother'] = smoother.smoother(
         CONS['field_abcd'][0] * 2**level,
@@ -256,7 +250,7 @@ def register(args):
                                [0, 0, 0, 1]])
             inv_matrix = np.linalg.inv(matrix)[:-1]
             inv_trans = transformer.transformer(inverse.shape[:-1], CONS['spacing'], np.float32)
-            inv_trans.set_initial_transform(inv_matrix)
+            inv_trans.set_initial_moving_transform(inv_matrix)
             inverse = inverse + inv_trans.Xit - inv_trans.X
         inout.write_image(inverse, args.inverse)
 

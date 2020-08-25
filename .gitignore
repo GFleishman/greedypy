@@ -1,3 +1,7 @@
+# ignore build files
+build/
+dist/
+
 # ignore compiled python
 *.pyc
 

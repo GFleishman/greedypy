@@ -50,7 +50,7 @@ else:
     def set_iterations(iterations):
         args['iterations'] = iterations
 
-    def set_lcc_radius(radius):
+    def set_lcc_radius(lcc_radius):
         args['lcc_radius'] = lcc_radius
 
     def set_mask(mask):
