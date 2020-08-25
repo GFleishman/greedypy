@@ -1,6 +1,7 @@
 # ignore build files
 build/
 dist/
+greedypy.egg-info/
 
 # ignore compiled python
 *.pyc
