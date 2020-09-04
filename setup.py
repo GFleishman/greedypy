@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="greedypy",
-    version="0.0.1",
+    version="0.0.2",
     author="Greg M. Fleishman",
     author_email="greg.nli10me@gmail.com",
     description="Fast deformable registration in python",
@@ -11,11 +11,11 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     include_package_data=True,
     install_requires=[
-        'argparse'
+        'argparse',
         'numpy',
         'scipy',
         'nibabel',
-        'nrrd',
+        'pynrrd',
         'pyfftw'
     ]
 )

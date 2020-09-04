@@ -9,7 +9,7 @@ Began: November 2019
 
 import interface
 from argparse import Namespace
-import optimizer
+import greedypy.optimizer as optimizer
 
 
 # using command line interface

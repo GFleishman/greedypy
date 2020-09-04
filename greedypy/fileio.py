@@ -11,6 +11,19 @@ import numpy as np
 from os.path import splitext, abspath, isdir
 
 
+def ensureArray(reference, dataset_path):
+    """
+    """
+
+    if not isinstance(reference, np.ndarray):
+        if not isinstance(reference, str):
+            raise ValueError("image references must be ndarrays or filepaths")
+        reference, vox, meta = read_image(reference, dataset_path)[...]  # hdf5 arrays are lazy
+    else:
+        vox, meta = None, None
+    return reference, vox, meta
+
+
 def parse_n5_slice(slice_string):
 
     sss = slice_string.split('x')

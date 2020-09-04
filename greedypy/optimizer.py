@@ -8,37 +8,58 @@ Began: November 2019
 """
 
 import numpy as np
-import smoother
-import matcher
-import transformer
-import inout
 import time
 from scipy.ndimage import zoom
 from os import makedirs
 from os.path import splitext, abspath, dirname
 import gc
 
+import greedypy.regularizers as regularizers
+import greedypy.metrics as metrics
+import greedypy.transformer as transformer
+import greedypy.fileio as fileio
+
+
+def record(message, log):
+    """
+    """
+
+    print(message)
+    print(message, file=log)
+
 
 def initialize_constants(args):
     """Process command line args, read input images/mask
     all constants stored in a constants_container"""
 
-    fff = np.float32 if args.precision == 'single' else np.float64
+    # constant throughout alignment
     CONS = {}
-    CONS['dtype'] = fff
-    CONS['iterations'] = [int(x) for x in args.iterations.split('x')]
+
+    # datatype precision
+    CONS['dtype'] = np.float32 if args.precision == 'single' else np.float64
+    dtype = CONS['dtype']
+
+    # metric parameters
     CONS['lcc_radius'] = int(args.lcc_radius)
-    CONS['gradient_step'] = fff(args.gradient_step)
-    CONS['tolerance'] = fff(args.optimization_tolerance)
-    CONS['field_abcd'] = [fff(x) for x in args.field_regularizer.split('x')]
-    CONS['grad_abcd'] = [fff(x) for x in args.grad_regularizer.split('x')]
+
+    # gradient descent/optimization parameters
+    CONS['iterations'] = [int(x) for x in args.iterations.split('x')]
+    CONS['gradient_step'] = dtype(args.gradient_step)
+    CONS['tolerance'] = dtype(args.optimization_tolerance)
+
+    # regularizer coefficients
+    CONS['field_abcd'] = [dtype(x) for x in args.field_regularizer.split('x')]
+    CONS['grad_abcd'] = [dtype(x) for x in args.grad_regularizer.split('x')]
+
+    # output directory and log
     CONS['outdir'] = abspath(dirname(args.output))
     CONS['log'] = open(dirname(args.output)+'/greedypy.log', 'w')
     makedirs(CONS['outdir'], exist_ok=True)
 
-    fixed, fspacing, fmeta = inout.read_image(args.fixed, CONS['dtype'],
+    # TODO: generalize to allow file paths or ndarrays
+    fixed, fspacing, fmeta = fileio.read_image(args.fixed, CONS['dtype'],
         args.n5_fixed_path)
-    moving, mspacing, mmeta = inout.read_image(args.moving, CONS['dtype'],
+    moving, mspacing, mmeta = fileio.read_image(args.moving, CONS['dtype'],
         args.n5_moving_path)
     CONS['fixed'] = fixed
     CONS['fixed_meta'] = fmeta
@@ -50,12 +71,12 @@ def initialize_constants(args):
     if args.initial_transform:
         if splitext(args.initial_transform)[1] == '.mat':
             matrix = np.loadtxt(abspath(args.initial_transform))
-            matrix = fff(matrix)
+            matrix = dtype(matrix)
             CONS['initial_transform'] = matrix
 
     if args.mask:
         if isinstance(args.mask, str):
-            mask, _not_used_, _not_used__ = inout.read_image(args.mask)
+            mask, _not_used_, _not_used__ = fileio.read_image(args.mask)
         # TODO: implement mask support
 
     if args.auto_mask:
@@ -119,24 +140,23 @@ def initialize_variables(CONS, phi, level):
 
 
 def register(args):
+
+    # initialize constants dictionary, record params and initial energy
     CONS = initialize_constants(args)
-    level = len(CONS['iterations']) - 1
-
-    print(args)
-    print(args, file=CONS['log'])
-
-    # record initial energy
     # TODO: include initial transform in this energy calculation
-    ff, mm, rad = CONS['fixed'], CONS['moving'], CONS['lcc_radius']
-    mat = matcher.matcher(ff, mm, rad)
-    energy = mat.lcc(ff, mm, rad)
-    message = 'initial energy: ' + str(energy)
-    print(message)
-    print(message, file=CONS['log'])
+    metric = metrics.local_correlation(
+        CONS['fixed'], CONS['moving'], CONS['lcc_radius'],
+    )
+    energy = metric.evaluate(
+        CONS['fixed'], CONS['moving'], CONS['lcc_radius'],
+    )
+    record(args, CONS['log'])
+    record('initial energy: ' + str(energy), CONS['logs'])
 
 
 
     # multiscale loop
+    level = len(CONS['iterations']) - 1
     start_time = time.clock()
     lowest_phi = 0
     for local_iterations in CONS['iterations']:
@@ -221,13 +241,13 @@ def register(args):
 
     # write the warped image
     if args.warped_image is not None:
-        inout.write_image(warped, args.warped_image)
+        fileio.write_image(warped, args.warped_image)
 
 
     # write the final lcc
     if args.final_lcc is not None:
         final_lcc = VARS['matcher'].lcc(CONS['fixed'], warped, CONS['lcc_radius'], mean=False)
-        inout.write_image(final_lcc, args.final_lcc)
+        fileio.write_image(final_lcc, args.final_lcc)
         del warped, final_lcc
 
 
@@ -235,7 +255,7 @@ def register(args):
     output = lowest_phi
     if args.compose_output_with_it:
         output = lowest_phi + VARS['transformer'].Xit - VARS['transformer'].X
-    inout.write_image(output, args.output)
+    fileio.write_image(output, args.output)
     del VARS['fixed'], VARS['moving'], CONS['fixed'], CONS['moving']
     gc.collect()
 
@@ -252,7 +272,7 @@ def register(args):
             inv_trans = transformer.transformer(inverse.shape[:-1], CONS['spacing'], np.float32)
             inv_trans.set_initial_moving_transform(inv_matrix)
             inverse = inverse + inv_trans.Xit - inv_trans.X
-        inout.write_image(inverse, args.inverse)
+        fileio.write_image(inverse, args.inverse)
 
 
 
