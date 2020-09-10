@@ -14,94 +14,80 @@ from scipy.ndimage import map_coordinates
 class transformer:
 
 
-    def __init__(self, sh, vox, dtype=np.float32):
+    def __init__(self, sh, vox, initial_transform=None, dtype=np.float32):
         """
         """
 
-        s = self
-        s.X = s._set_position_array(sh, vox, dtype)
+        self.sh = tuple(sh)
+        self.vox = np.array(vox)
+        self.X = self._get_position_array(dtype)
+        if initial_transform is not None:
+            self.X = self.X + initial_transform
 
 
-    def _set_position_array(self, sh, vox, dtype):
+    def _get_position_array(self, dtype):
         """
         """
         
-        sh, vox = tuple(sh), np.array(vox, dtype=dtype)
-        coords = np.array(np.meshgrid(*[range(x) for x in sh], indexing='ij'), dtype=dtype)
-        return vox * np.ascontiguousarray(np.moveaxis(coords, 0, -1))
+        coords = np.meshgrid(*[range(x) for x in self.sh], indexing='ij')
+        coords = np.array(coords, dtype=dtype)
+        return self.vox * np.ascontiguousarray(np.moveaxis(coords, 0, -1))
 
 
-    def set_initial_moving_transform(self, matrix=None, displacement=None):
+    def apply_transform(self, img, dX, order=1, mode='nearest'):
         """
         """
 
-        # need matrix or displacement
-        error = "affine matrix or diplacement field required, but not both"
-        assert( (matrix is not None) != (displacement is not None) ), error
-
-        if matrix is not None:
-            s = self
-            mm = matrix[:, :-1]
-            tt = matrix[:, -1]
-            s.Xit = np.einsum('...ij,...j->...i', mm, s.X) + tt
-        elif displacement is not None:
-            raise NotImplementedError('Initial displacement fields not implemented yet')
-
-
-    def apply_transform(self, img, vox, dX, initial_transform=False, order=1, mode='nearest'):
-        """
-        """
-
-        # TODO: storing X and Xit as contiguous arrays with vector dims
+        # TODO: storing X as contiguous array with vector dims
         #       first will probably speed things up; should really be done
         #       throughout entire package
 
-        if len(img.shape) == len(vox):
+        if len(img.shape) == len(self.vox):
             img = img[..., np.newaxis]
-        X = self.Xit+dX if initial_transform else self.X+dX
-        X *= 1./vox
-        ret = np.empty(X.shape[:-1] + (img.shape[-1],), dtype=img.dtype)
+        X = (self.X + dX) / self.vox
         X = np.moveaxis(X, -1, 0)
+        ret = np.empty(X.shape[1:] + (img.shape[-1],), dtype=img.dtype)
         for i in range(img.shape[-1]):
-            ret[..., i] = map_coordinates(img[..., i], X,
-                                          order=order, mode=mode)
+            ret[..., i] = map_coordinates(img[..., i], X, order=order, mode=mode)
         return ret.squeeze()
 
 
-    def invert(self, vox, dX, exp=2):
+    def invert(self, dX, exp=2):
         """
         """
 
-        root = self.nth_square_root(vox, dX, exp)
+        root = self._nth_square_root(dX, exp)
         inv = np.zeros(root.shape, dtype=dX.dtype)
         for i in range(20):
-            inv = - self.apply_transform(root, vox, inv)
+            inv = - self.apply_transform(root, inv)
         for i in range(exp):
-            inv = inv + self.apply_transform(inv, vox, inv)
+            inv = inv + self.apply_transform(inv, inv)
         return inv
 
 
-    def nth_square_root(self, vox, dX, exp):
+    def _nth_square_root(self, dX, exp):
         """
         """
 
         root = np.copy(dX)
         for i in range(int(exp)):
-            root = self.square_root(vox, root)
+            root = self._square_root(root)
         return root
 
 
-    def square_root(self, vox, dX):
+    def _square_root(self, dX):
         """
         """
 
         dXroot = np.zeros(dX.shape, dtype=dX.dtype)
         for i in range(5):
-            error = dX - dXroot - self.apply_transform(dXroot, vox, dXroot)
+            error = dX - dXroot - self.apply_transform(dXroot, dXroot)
             dXroot += 0.5 * error
         return dXroot
 
 
+
+    # TODO: figure out where these are used... refactor or remove them
     def square_root_grad(self, vox, dX):
         """
         """

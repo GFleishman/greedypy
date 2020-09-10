@@ -1,7 +1,9 @@
 import numpy as np
+from scipy.ndimage import zoom
 import greedypy.metrics as metrics
 import greedypy.regularizers as regularizers
 import greedypy.transformer as transformer
+
 
 
 class greedypy_registration_method:
@@ -13,21 +15,24 @@ class greedypy_registration_method:
         fixed, fixed_vox,
         moving, moving_vox,
         iterations,
-        radius=8,
-        step=1e-2,
-        tolerance=1e-2,
-        field_abcd=[3., 0., 1., 2.],
+        radius=16,
+        early_convergence_ratio=1e-4,
+        field_abcd=[0.5, 0., 1., 6.],
         gradient_abcd=[3., 0., 1., 2.],
         dtype=np.float32,
+        step=None,
         log=None,
     ):
         """
         """
 
+        if step is None:
+             step = fixed_vox.min()
         self.__dict__.update(locals())
-        self.grid = fixed.shape
+        self.phi = None
+        self.warped = None
+        self.invphi = None
         self.mask = None
-        self.auto_mask = None
         self.initial_transform = None
 
 
@@ -38,11 +43,16 @@ class greedypy_registration_method:
         self.mask = mask
 
 
-    def set_auto_mask(self, auto_mask):
+    def mask_values(self, values):
         """
         """
 
-        self.auto_mask = auto_mask
+        if self.mask is None:
+            self.mask = np.ones_like(self.moving)
+        if type(values) is not list:
+            values = list(values)
+        for value in values:
+            self.mask[self.moving == value] = 0
 
 
     def set_initial_transform(self, initial_transform):
@@ -52,59 +62,56 @@ class greedypy_registration_method:
         self.initial_transform = initial_transform
 
 
-    def save_warped_image(self):
+    def get_warp(self):
         """
         """
 
-        None
+        return self.phi
 
 
-    def save_final_lcc(self):
+    def get_inverse_warp(self):
         """
         """
 
-        None
+        trans = transformer.transformer(
+            self.fixed.shape, self.fixed_vox, dtype=self.dtype,
+        )
+        self.invphi = trans.invert(self.phi)
+        return self.invphi
 
 
-    def compose_result_and_initial_transform(self):
+    def get_warped_image(self):
         """
         """
 
-        None
-
-
-    def inverse_result(self):
-        """
-        """
-
-        None
+        return self.warped
 
 
     def optimize(self):
         """
         """
 
-        self.phi = None  # the optimal transform
-        for level, local_iterations in enumerate(self.iterations):
+        # loop over resolution levels
+        for level_count, local_iterations in enumerate(self.iterations):
 
             # resample images
-            level_countdown = len(self.iterations) - level - 1
-            fixed = self._resample(
+            level = len(self.iterations) - level_count - 1
+            fixed = self._downsample(
                 self.fixed,
                 self.fixed_vox,
-                1./2**level_countdown,
-                alpha=1.+level_countdown,
+                1./2**level,
+                alpha=1.+level,
             )
-            moving = self._resample(
+            moving = self._downsample(
                 self.moving,
                 self.moving_vox,
-                1./2**level_countdown,
-                alpha=1.+level_countdown,
+                1./2**level,
+                alpha=1.+level,
             )
 
             # new voxel sizes
-            fixed_vox = self.fixed_vox * 2**level_countdown
-            moving_vox = self.moving_vox * 2**level_countdown
+            fixed_vox = self.fixed_vox * 2**level
+            moving_vox = self.moving_vox * 2**level
 
             # initialize or resample the transform
             if self.phi is None:
@@ -114,59 +121,97 @@ class greedypy_registration_method:
                 )
             else:
                 zoom_factor = np.array(fixed.shape) / np.array(self.phi.shape[:-1])
-                # TODO: nearest seems wrong? check docs and test with linear
-                phi = [zoom(self.phi[..., i], zoom_factor, mode='nearest')
+                phi = [zoom(self.phi[..., i], zoom_factor, order=1, mode='nearest')
                     for i in range(3)
                 ]
                 phi = np.ascontiguousarray(np.moveaxis(np.array(phi), 0, -1))
             self.phi = phi
 
-            # initialize the transformer
-            trans = transformer.transformer(
-                fixed.shape, fixed_vox, self.dtype
-            )
-            if self.initial_transform is not None:
-                trans.set_initial_moving_transform(self.initial_transform)
+            # resample the residual mask
+            if self.mask is not None:
+                mask = self._downsample(
+                    self.mask,
+                    self.fixed_vox,
+                    1/2**level,
+                    alpha=1.+level,
+                    order=0,
+                )
 
-            # initialize the smoothers
+            # transformer
+            trans = transformer.transformer(
+                fixed.shape, fixed_vox,
+                initial_transform=self.initial_transform,
+                dtype=self.dtype
+            )
+
+            # smoothers
             field_smoother = regularizers.differential(
-                self.field_abcd[0] * 2**level_countdown,
+                self.field_abcd[0] * 2**level,
                 *self.field_abcd[1:], fixed_vox, fixed.shape, self.dtype,
             )
             grad_smoother = regularizers.differential(
-                self.grad_abcd[0] * 2**level_countdown,
-                *self.grad_abcd[1:], fixed_vox, fixed.shape, self.dtype,
+                self.gradient_abcd[0] * 2**level,
+                *self.gradient_abcd[1:], fixed_vox, fixed.shape, self.dtype,
             )
 
-            # initialize the metric
-            metric = metrics.local_correlation(fixed, moving, self.lcc_radius)
+            # metric
+            metric = metrics.local_correlation(fixed, moving, self.radius)
 
-            # initialize the mask
-            if self.auto_mask is not None:
-                mask = np.ones(moving.shape, dtype=np.uint8)
-                # TODO: apply initial transform to moving image, call it transformed
-                for intensity in self.auto_mask:
-                    mask[transformed==intensity] = 0
-
-            # some flags and values to keep track of
-            iteration = 0  # the iteration counter
-            backstep_count = 0  # number of times the optimization has reversed a step
-            converged = False  # flag for early convergence
-            self.energy = 0  # the lowest energy
+            # optimization variables
+            iteration = 0
+            converged = False
+            energy_history = []
 
             # optimize at this level
             while iteration < local_iterations and not converged:
 
-                # compute residual
+                # compute the residual
+                warped = trans.apply_transform(moving, phi)
+                energy, gradient = metric.gradient(fixed, warped, self.radius, fixed_vox)
+                gradient = grad_smoother.smooth(gradient)
+
                 # apply moving image mask to residual
+                if self.mask is not None:
+                    gradient = gradient * mask
+
                 # monitor the optimization
+                if iteration == 0:
+                     initial_energy = energy
+                if iteration < 10:
+                    energy_history.append(energy)
+                    x, y = 1, 1
+                else:
+                    energy_history.pop(0)
+                    energy_history.append(energy)
+                    x = np.gradient(energy_history).mean()
+                    y = initial_energy - energy_history[-1]
+                    if abs( x/y ) < self.early_convergence_ratio:
+                        converged = True
+
                 # make the gradient descent update
+                scale = self.step / np.linalg.norm(gradient, axis=-1).max()
+                phi = phi - scale * gradient
+                phi = field_smoother.smooth(phi)
+
                 # record progress
+                self._record("Level: {}, Iteration: {}, Energy: {}".format(level, iteration, energy))
+
+                # the wheel keeps on spinning
+                iteration = iteration + 1
+
+            # store the transform for the next level
+            self.phi = phi
+            self.warped = warped
 
 
-    def _downsample(image, spacing, zoom_factor, alpha=1.):
+    def _downsample(self, image, spacing, zoom_factor, alpha=1., order=1):
         """
         """
+
+        if zoom_factor > 1.:
+            raise ValueError('zoom_factor must be less than 1 for _downsample')
+        if zoom_factor == 1.:
+            return image
 
         smoother = regularizers.differential(
             alpha, 0., 1., 2.,
@@ -174,17 +219,18 @@ class greedypy_registration_method:
             image.shape,
             dtype=self.dtype,
         )
-        # TODO: test if copy is necessary here  
         return zoom(
-            np.copy(smoother.smooth(image)),
-            zoom_factor, mode='wrap',
+            smoother.smooth(image),
+            zoom_factor, mode='wrap', order=order,
         )
 
 
-    def _record(message, log):
+    def _record(self, message):
         """
         """
 
         print(message)
         if self.log is not None:
-            print(message, file=log)
+            print(message, file=self.log)
+
+
