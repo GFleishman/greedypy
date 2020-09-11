@@ -15,8 +15,11 @@ class greedypy_registration_method:
         fixed, fixed_vox,
         moving, moving_vox,
         iterations,
+        shrink_factors,
+        smooth_sigmas,
         radius=16,
         early_convergence_ratio=1e-4,
+        convergence_test_length=10,
         field_abcd=[0.5, 0., 1., 6.],
         gradient_abcd=[3., 0., 1., 2.],
         dtype=np.float32,
@@ -25,6 +28,11 @@ class greedypy_registration_method:
     ):
         """
         """
+
+        error = "iterations, shrink_factors, and smooth_sigmas must be equal length lists"
+        assert (len(iterations) == len(shrink_factors) and 
+                len(iterations) == len(smooth_sigmas)
+        ), error
 
         if step is None:
              step = fixed_vox.min()
@@ -92,26 +100,26 @@ class greedypy_registration_method:
         """
 
         # loop over resolution levels
-        for level_count, local_iterations in enumerate(self.iterations):
+        for level, local_iterations in enumerate(self.iterations):
 
             # resample images
-            level = len(self.iterations) - level_count - 1
             fixed = self._downsample(
                 self.fixed,
                 self.fixed_vox,
-                1./2**level,
-                alpha=1.+level,
+                1./self.shrink_factors[level],
+                alpha=self.smooth_sigmas[level],
             )
             moving = self._downsample(
                 self.moving,
                 self.moving_vox,
-                1./2**level,
-                alpha=1.+level,
+                1./self.shrink_factors[level],
+                alpha=self.smooth_sigmas[level],
             )
 
-            # new voxel sizes
-            fixed_vox = self.fixed_vox * 2**level
-            moving_vox = self.moving_vox * 2**level
+            # new voxel sizes and step
+            fixed_vox = self.fixed_vox * self.shrink_factors[level]
+            moving_vox = self.moving_vox * self.shrink_factors[level]
+            step = self.step * self.shrink_factors[level]
 
             # initialize or resample the transform
             if self.phi is None:
@@ -121,7 +129,7 @@ class greedypy_registration_method:
                 )
             else:
                 zoom_factor = np.array(fixed.shape) / np.array(self.phi.shape[:-1])
-                phi = [zoom(self.phi[..., i], zoom_factor, order=1, mode='nearest')
+                phi = [zoom(self.phi[..., i], zoom_factor, order=3, mode='nearest')
                     for i in range(3)
                 ]
                 phi = np.ascontiguousarray(np.moveaxis(np.array(phi), 0, -1))
@@ -132,8 +140,8 @@ class greedypy_registration_method:
                 mask = self._downsample(
                     self.mask,
                     self.fixed_vox,
-                    1/2**level,
-                    alpha=1.+level,
+                    1./self.shrink_factors[level],
+                    alpha=self.smooth_sigmas[level],
                     order=0,
                 )
 
@@ -146,11 +154,11 @@ class greedypy_registration_method:
 
             # smoothers
             field_smoother = regularizers.differential(
-                self.field_abcd[0] * 2**level,
+                self.field_abcd[0] * self.shrink_factors[level],
                 *self.field_abcd[1:], fixed_vox, fixed.shape, self.dtype,
             )
             grad_smoother = regularizers.differential(
-                self.gradient_abcd[0] * 2**level,
+                self.gradient_abcd[0] * self.shrink_factors[level],
                 *self.gradient_abcd[1:], fixed_vox, fixed.shape, self.dtype,
             )
 
@@ -177,19 +185,18 @@ class greedypy_registration_method:
                 # monitor the optimization
                 if iteration == 0:
                      initial_energy = energy
-                if iteration < 10:
+                if iteration < self.convergence_test_length:
                     energy_history.append(energy)
-                    x, y = 1, 1
                 else:
                     energy_history.pop(0)
                     energy_history.append(energy)
                     x = np.gradient(energy_history).mean()
                     y = initial_energy - energy_history[-1]
-                    if abs( x/y ) < self.early_convergence_ratio:
+                    if x > 0 or abs( x/y ) < self.early_convergence_ratio:
                         converged = True
 
                 # make the gradient descent update
-                scale = self.step / np.linalg.norm(gradient, axis=-1).max()
+                scale = step / np.linalg.norm(gradient, axis=-1).max()
                 phi = phi - scale * gradient
                 phi = field_smoother.smooth(phi)
 
@@ -210,7 +217,7 @@ class greedypy_registration_method:
 
         if zoom_factor > 1.:
             raise ValueError('zoom_factor must be less than 1 for _downsample')
-        if zoom_factor == 1.:
+        if zoom_factor == 1. and alpha == 0.:
             return image
 
         smoother = regularizers.differential(

@@ -13,18 +13,21 @@ from itertools import product
 class local_correlation:
 
 
+    # TODO: store rad and tolerance in class
     def __init__(self, fixed, moving, rad, tolerance=1e-6):
         """
         """
 
         s = self
         s.mov_mean = np.mean(moving)  # should recomp after interp, but accurate enough
+        s.mov_winsor_min, s.mov_winsor_max = np.percentile(moving, [0.1, 99.9])
         s.fix_mean = np.mean(fixed)
         s.fix_shifted = fixed - s.fix_mean
         s.u_fix_shifted = s._local_means(s.fix_shifted, rad)
         s.u_fix = s.u_fix_shifted + s.fix_mean
         s.v_fix = s._local_means(s.fix_shifted**2, rad) - s.u_fix_shifted**2
-        s.v_fix[s.v_fix < tolerance] = 1  # questionable, should maybe add noise to image
+        winsor_min, winsor_max = np.percentile(fixed, [0.1, 99.9])
+        s.fix_mask = s.v_fix / (winsor_max - winsor_min) < tolerance
 
 
     def evaluate(self, fixed, moving, rad, tolerance=1e-6, mean=True):
@@ -36,13 +39,12 @@ class local_correlation:
         u_mov_shifted = s._local_means(mov_shifted, rad)
         u_mov = u_mov_shifted + s.mov_mean
         v_mov = s._local_means(mov_shifted**2, rad) - u_mov_shifted**2
-        v_mov[v_mov < tolerance] = 1  # questionable
+        mov_mask = v_mov / (s.mov_winsor_max - s.mov_winsor_min) < tolerance
         v_fixmov = s._local_means(s.fix_shifted*mov_shifted, rad) - \
                                  s.u_fix_shifted*u_mov_shifted
-        v_fixmov[v_fixmov < tolerance] = 0  # questionable
-
-        cc = v_fixmov**2 / (s.v_fix * v_mov)
-        if mean: cc = -np.mean(cc)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            cc = v_fixmov**2 / (s.v_fix * v_mov)
+        if mean: cc = -np.mean(cc[~(s.fix_mask + mov_mask)])
         return cc
 
 
@@ -55,14 +57,16 @@ class local_correlation:
         u_mov_shifted = s._local_means(mov_shifted, rad)
         u_mov = u_mov_shifted + s.mov_mean
         v_mov = s._local_means(mov_shifted**2, rad) - u_mov_shifted**2
-        v_mov[v_mov < tolerance] = 1  # questionable
+        mov_mask = v_mov / (s.mov_winsor_max - s.mov_winsor_min) < tolerance
         v_fixmov = s._local_means(s.fix_shifted*mov_shifted, rad) - \
                                  s.u_fix_shifted*u_mov_shifted
-        v_fixmov[v_fixmov < tolerance] = 0  # questionable
 
-        cc = -np.mean( v_fixmov**2 / (s.v_fix * v_mov) )
-        ccgrad = v_fixmov * ( (moving-u_mov)  * v_fixmov - \
-                              (fixed-s.u_fix) * v_mov ) / (s.v_fix*v_mov**2)
+        with np.errstate(divide='ignore', invalid='ignore'):
+            cc = v_fixmov**2 / (s.v_fix * v_mov)
+            cc = -np.mean(cc[~(s.fix_mask + mov_mask)])
+            ccgrad = v_fixmov * ( (moving-u_mov)  * v_fixmov - \
+                                  (fixed-s.u_fix) * v_mov ) / (s.v_fix*v_mov**2)
+        ccgrad[s.fix_mask + mov_mask] = 0
         grad = np.moveaxis(np.gradient(moving, *vox), 0, -1)
         ccgrad = ccgrad[..., np.newaxis] * np.ascontiguousarray(grad)
         return cc, ccgrad
