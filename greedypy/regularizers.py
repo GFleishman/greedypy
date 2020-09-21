@@ -36,8 +36,8 @@ class differential:
             cdtype = np.complex128
         outp = pyfftw.empty_aligned(outp_sh, dtype=cdtype)
         # TODO: detect number of cores for threads!
-        ffter = pyfftw.FFTW(inp, outp, axes=ax, threads=1)
-        iffter = pyfftw.FFTW(outp, inp, axes=ax, direction='FFTW_BACKWARD', threads=1)
+        ffter = pyfftw.FFTW(inp, outp, axes=ax, threads=2)
+        iffter = pyfftw.FFTW(outp, inp, axes=ax, direction='FFTW_BACKWARD', threads=2)
         return ffter, iffter
 
 

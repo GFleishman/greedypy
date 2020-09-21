@@ -58,7 +58,7 @@ class greedypy_registration_method:
         if self.mask is None:
             self.mask = np.ones_like(self.moving)
         if type(values) is not list:
-            values = list(values)
+            values = [values,]
         for value in values:
             self.mask[self.moving == value] = 0
 
@@ -180,7 +180,7 @@ class greedypy_registration_method:
 
                 # apply moving image mask to residual
                 if self.mask is not None:
-                    gradient = gradient * mask
+                    gradient = gradient * mask[..., None]
 
                 # monitor the optimization
                 if iteration == 0:
@@ -228,7 +228,7 @@ class greedypy_registration_method:
         )
         return zoom(
             smoother.smooth(image),
-            zoom_factor, mode='wrap', order=order,
+            zoom_factor, mode='reflect', order=order,
         )
 
 
