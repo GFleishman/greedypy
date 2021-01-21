@@ -9,6 +9,33 @@ Began: November 2019
 
 import pyfftw
 import numpy as np
+from scipy.ndimage import gaussian_filter
+
+
+class gaussian:
+
+
+    def __init__(self, sigma, truncate=4.0):
+        """
+        """
+
+        self.sigma = sigma
+        self.truncate = truncate
+
+
+    def smooth(self, img):
+        """
+        """
+
+        if img.shape[-1] not in [1, 2, 3]:
+            img = img[..., None]
+        for i in range(img.shape[-1]):
+            img[..., i] = gaussian_filter(
+                img[..., i],
+                self.sigma,
+                truncate=self.truncate,
+            )
+        return img.squeeze()
 
 
 class differential:
