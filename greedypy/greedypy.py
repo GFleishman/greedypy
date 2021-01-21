@@ -7,9 +7,9 @@ Copyright: Greg M. Fleishman
 Began: November 2019
 """
 
-import interface
+from greedypy import interface
+from greedypy import optimizer
 from argparse import Namespace
-import greedypy.optimizer as optimizer
 
 
 # using command line interface
