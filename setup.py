@@ -16,6 +16,8 @@ setuptools.setup(
         'scipy',
         'nibabel',
         'pynrrd',
-        'pyfftw'
+        'pyfftw',
+        'zarr',
+        'numcodecs',
     ]
 )

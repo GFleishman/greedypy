@@ -54,8 +54,8 @@ def read_image(path, dtype, n5_path=None):
         img_vox = np.diag(img_meta['space directions'].astype(dtype))
         return img_data, img_vox, img_meta
     elif isdir(path) and n5_path is not None:
-        import z5py, json
-        img = z5py.File(path, use_zarr_format=False)
+        import zarr, json
+        img = zarr.open(store=zarr.N5Store(path), mode='r')
         slices = parse_n5_slice(n5_path[1])
         if len(slices) == 3:
             img_data = img[n5_path[0]][slices[0], slices[1], slices[2]]
