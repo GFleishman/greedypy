@@ -93,7 +93,7 @@ def initialize_variables(CONS, phi, level):
     VARS = {}
 
     # smooth and downsample the images
-    aaSmoother = smoother.smoother(1+level, 0, 1, 2,
+    aaSmoother = regularizers.differential(1+level, 0, 1, 2,
         CONS['spacing'], CONS['grid'], CONS['dtype'])
     fix_smooth = np.copy(aaSmoother.smooth(CONS['fixed']))
     mov_smooth = np.copy(aaSmoother.smooth(CONS['moving']))
@@ -116,10 +116,10 @@ def initialize_variables(CONS, phi, level):
     if 'initial_transform' in CONS.keys():
         VARS['transformer'].set_initial_moving_transform(CONS['initial_transform'])
     # initialize the smoothers
-    VARS['field_smoother'] = smoother.smoother(
+    VARS['field_smoother'] = regularizers.differential(
         CONS['field_abcd'][0] * 2**level,
         *CONS['field_abcd'][1:], VARS['spacing'], shape, CONS['dtype'])
-    VARS['grad_smoother'] = smoother.smoother(
+    VARS['grad_smoother'] = regularizers.differential(
         CONS['grad_abcd'][0] * 2**level,
         *CONS['grad_abcd'][1:], VARS['spacing'], shape, CONS['dtype'])
     # initialize the matcher
@@ -192,7 +192,7 @@ def register(args):
                 local_step *= 0.5
                 backstep_count += 1
                 iteration -= 1
-                VARS['field_smoother'] = smoother.smoother(
+                VARS['field_smoother'] = regularizers.differential(
                     CONS['field_abcd'][0] * 2**level / 4**backstep_count,
                     *CONS['field_abcd'][1:], VARS['spacing'], VARS['fixed'].shape, CONS['dtype'])
                 if backstep_count >= max(local_iterations//10, 5): converged = True
