@@ -157,7 +157,7 @@ def register(args):
 
     # multiscale loop
     level = len(CONS['iterations']) - 1
-    start_time = time.clock()
+    start_time = time.perf_counter()
     lowest_phi = 0
     for local_iterations in CONS['iterations']:
 
@@ -171,7 +171,7 @@ def register(args):
 
         # loop for current level
         while iteration < local_iterations and not converged:
-            t0 = time.clock()
+            t0 = time.perf_counter()
 
             # compute the residual
             warped = VARS['transformer'].apply_transform(VARS['moving'],
@@ -213,7 +213,7 @@ def register(args):
             # record progress
             message = 'it: ' + str(iteration) + \
                       ', en: ' + str(energy) + \
-                      ', time: ' + str(time.clock() - t0) + \
+                      ', time: ' + str(time.perf_counter() - t0) + \
                       ', bsc: ' + str(backstep_count)
             print(message)
             print(message, file=CONS['log'])
@@ -221,7 +221,7 @@ def register(args):
 
 
 
-    message = 'total optimization time: ' + str(time.clock() - start_time)
+    message = 'total optimization time: ' + str(time.perf_counter() - start_time)
     print(message)
     print(message, file=CONS['log'])
 
