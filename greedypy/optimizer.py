@@ -151,7 +151,7 @@ def register(args):
         CONS['fixed'], CONS['moving'], CONS['lcc_radius'],
     )
     record(args, CONS['log'])
-    record('initial energy: ' + str(energy), CONS['logs'])
+    record('initial energy: ' + str(energy), CONS['log'])
 
 
 
