@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="greedypy",
-    version="0.0.5",
+    version="0.0.6",
     author="Greg M. Fleishman",
     author_email="greg.nli10me@gmail.com",
     description="Fast deformable registration in python",
