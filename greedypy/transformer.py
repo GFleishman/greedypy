@@ -20,9 +20,16 @@ class transformer:
 
         self.sh = tuple(sh)
         self.vox = np.array(vox)
-        self.X = self._get_position_array(dtype)
+        X = self._get_position_array(dtype)
         if initial_transform is not None:
-            self.X = self.X + initial_transform
+            if initial_transform.shape == X.shape:
+                self.X = X + initial_transform
+            else:
+                mm = initial_transform[:, :-1]
+                tt = initial_transform[:, -1]
+                self.X = np.einsum('...ij,...j->...i', mm, X) + tt
+        else:
+            self.X = X
 
 
     def _get_position_array(self, dtype):

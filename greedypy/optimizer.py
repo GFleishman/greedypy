@@ -19,6 +19,9 @@ import greedypy.metrics as metrics
 import greedypy.transformer as transformer
 import greedypy.fileio as fileio
 
+# DEBUG
+import sys
+
 
 def record(message, log):
     """
@@ -94,15 +97,20 @@ def initialize_variables(CONS, phi, level):
 
     # smooth and downsample the images
     aaSmoother = regularizers.differential(1+level, 0, 1, 2,
-        CONS['spacing'], CONS['grid'], CONS['dtype'])
+        CONS['spacing'], CONS['grid'], CONS['dtype'],
+    )
+
     fix_smooth = np.copy(aaSmoother.smooth(CONS['fixed']))
     mov_smooth = np.copy(aaSmoother.smooth(CONS['moving']))
+
     VARS['fixed'] = zoom(fix_smooth, 1./2**level, mode='wrap')
     VARS['moving'] = zoom(mov_smooth, 1./2**level, mode='wrap')
+
     # initialize a few odds and ends
     shape = VARS['fixed'].shape
     VARS['spacing'] = CONS['spacing'] * 2**level
     VARS['warped_transform'] = np.empty(shape + (len(shape),), dtype=CONS['dtype'])
+
     # initialize or resample the deformation
     if phi is None:
         VARS['phi'] = np.zeros(shape + (len(shape),), dtype=CONS['dtype'])
@@ -112,26 +120,41 @@ def initialize_variables(CONS, phi, level):
         VARS['phi'] = np.ascontiguousarray(np.moveaxis(np.array(phi_), 0, -1))
 
     # initialize the transformer
-    VARS['transformer'] = transformer.transformer(shape, VARS['spacing'], CONS['dtype'])
     if 'initial_transform' in CONS.keys():
-        VARS['transformer'].set_initial_moving_transform(CONS['initial_transform'])
+        VARS['transformer'] = transformer.transformer(
+            shape, VARS['spacing'], dtype=CONS['dtype'],
+            initial_transform=CONS['initial_transform'],
+        )
+    else:
+        VARS['transformer'] = transformer.transformer(
+            shape, VARS['spacing'], dtype=CONS['dtype'],
+        )
+
     # initialize the smoothers
     VARS['field_smoother'] = regularizers.differential(
         CONS['field_abcd'][0] * 2**level,
         *CONS['field_abcd'][1:], VARS['spacing'], shape, CONS['dtype'])
+
     VARS['grad_smoother'] = regularizers.differential(
         CONS['grad_abcd'][0] * 2**level,
         *CONS['grad_abcd'][1:], VARS['spacing'], shape, CONS['dtype'])
+
     # initialize the matcher
-    VARS['matcher'] = matcher.matcher(VARS['fixed'], VARS['moving'], CONS['lcc_radius'])
+    VARS['matcher'] = metrics.local_correlation(
+        VARS['fixed'], VARS['moving'], CONS['lcc_radius'],
+    )
+
 
     # initialzie the mask if necessary
     if 'auto_mask' in CONS.keys():
         mask = np.ones(VARS['moving'].shape, dtype=np.uint8)
-        transformed = VARS['transformer'].apply_transform(VARS['moving'],
-            VARS['spacing'], np.zeros_like(VARS['phi']), initial_transform=True, mode='constant')
+        transformed = VARS['transformer'].apply_transform(
+            VARS['moving'], np.zeros_like(VARS['phi']), mode='constant',
+        )
+
         for xxx in CONS['auto_mask']:
             mask[transformed == xxx] = 0
+
         mask = mask[..., None]
         VARS['auto_mask'] = mask
 
@@ -153,12 +176,11 @@ def register(args):
     record(args, CONS['log'])
     record('initial energy: ' + str(energy), CONS['log'])
 
-
-
     # multiscale loop
     level = len(CONS['iterations']) - 1
     start_time = time.perf_counter()
     lowest_phi = 0
+
     for local_iterations in CONS['iterations']:
 
         # initialize level
@@ -174,10 +196,13 @@ def register(args):
             t0 = time.perf_counter()
 
             # compute the residual
-            warped = VARS['transformer'].apply_transform(VARS['moving'],
-                VARS['spacing'], VARS['phi'], initial_transform=init_trans, mode='constant')
-            energy, residual = VARS['matcher'].lcc_grad(VARS['fixed'], warped,
-                CONS['lcc_radius'], VARS['spacing'])
+            warped = VARS['transformer'].apply_transform(
+                VARS['moving'], VARS['phi'], mode='constant',
+            )
+            energy, residual = VARS['matcher'].gradient(
+                VARS['fixed'], warped,
+                CONS['lcc_radius'], VARS['spacing'],
+            )
             residual = VARS['grad_smoother'].smooth(residual)
             max_residual = np.linalg.norm(residual, axis=-1).max()
             residual *= VARS['spacing'].min()/max_residual
@@ -205,7 +230,8 @@ def register(args):
                 residual *= -local_step
                 for i in range(3):
                     VARS['warped_transform'][..., i] = VARS['transformer'].apply_transform(
-                        VARS['phi'][..., i], VARS['spacing'], residual, mode='nearest')
+                        VARS['phi'][..., i], residual, mode='nearest',
+                    )
                 VARS['phi'] = VARS['warped_transform'] + residual
                 VARS['phi'] = VARS['field_smoother'].smooth(VARS['phi'])
 
@@ -235,8 +261,9 @@ def register(args):
     init_trans = True if args.initial_transform is not None else False
     if args.final_lcc is not None or \
        args.warped_image is not None:
-        warped = VARS['transformer'].apply_transform(CONS['moving'],
-                    CONS['spacing'], lowest_phi, initial_transform=init_trans, mode='constant')
+        warped = VARS['transformer'].apply_transform(
+            CONS['moving'], lowest_phi, mode='constant',
+        )
 
 
     # write the warped image
@@ -246,7 +273,9 @@ def register(args):
 
     # write the final lcc
     if args.final_lcc is not None:
-        final_lcc = VARS['matcher'].lcc(CONS['fixed'], warped, CONS['lcc_radius'], mean=False)
+        final_lcc = VARS['matcher'].evaluate(
+            CONS['fixed'], warped, CONS['lcc_radius'], mean=False,
+        )
         fileio.write_image(final_lcc, args.final_lcc)
         del warped, final_lcc
 
@@ -254,7 +283,8 @@ def register(args):
     # write the deformation field
     output = lowest_phi
     if args.compose_output_with_it:
-        output = lowest_phi + VARS['transformer'].Xit - VARS['transformer'].X
+        output = lowest_phi + VARS['transformer'].X
+        output = output - VARS['transformer']._get_position_array(output.dtype)
     fileio.write_image(output, args.output)
     del VARS['fixed'], VARS['moving'], CONS['fixed'], CONS['moving']
     gc.collect()
@@ -262,16 +292,19 @@ def register(args):
 
     # write the inverse
     if args.inverse is not None:
-        inverse = VARS['transformer'].invert(CONS['spacing'], lowest_phi)
+        inverse = VARS['transformer'].invert(lowest_phi)
         if args.compose_output_with_it:
             matrix = np.array([CONS['initial_transform'][0],
                                CONS['initial_transform'][1],
                                CONS['initial_transform'][2],
                                [0, 0, 0, 1]])
             inv_matrix = np.linalg.inv(matrix)[:-1]
-            inv_trans = transformer.transformer(inverse.shape[:-1], CONS['spacing'], np.float32)
-            inv_trans.set_initial_moving_transform(inv_matrix)
-            inverse = inverse + inv_trans.Xit - inv_trans.X
+            inv_trans = transformer.transformer(
+                inverse.shape[:-1], CONS['spacing'], dtype=np.float32,
+                initial_transform=inv_matrix,
+            )
+            inverse = inverse + inv_trans.X
+            inverse = inverse - inv_trans._get_position_array(inverse.dtype)
         fileio.write_image(inverse, args.inverse)
 
 
